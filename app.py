@@ -229,7 +229,7 @@ else:
         with st.chat_message("assistant"):
             try:
                 model = genai.GenerativeModel(
-                    model_name="gemini-3.8-flash",
+                    model_name="gemini-1.5-flash",
                     system_instruction=sys_instruct
                 )
                 
