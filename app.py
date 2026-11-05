@@ -62,7 +62,7 @@ st.markdown("""
 # SVG del Delfín Pixelado adaptado para fondo oscuro
 DOLPHIN_HEADER_HTML = """
 <div style="display: flex; align-items: center; gap: 15px; font-family: sans-serif;">
-    <svg width="60" height="60" viewBox="0 0 16 16" fill="none" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" style="image-rendering: pixelated;">
+    <svg width="60" height="60" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="image-rendering: pixelated;">
       <path d="M7 2H10V3H11V4H12V5H13V6H14V8H13V9H12V10H9V11H7V10H5V9H3V8H2V7H1V6H3V5H5V4H7V2Z" fill="#00E5FF"/>
       <path d="M5 8H9V9H11V10H7V10H5V9H3V8H5Z" fill="#E0F7FA"/>
       <rect x="10" y="4" width="1" height="1" fill="#FFFFFF"/>
@@ -229,7 +229,7 @@ else:
         with st.chat_message("assistant"):
             try:
                 model = genai.GenerativeModel(
-                    model_name="gemini-1.5-flash",
+                    model_name="gemini-2.0-flash",
                     system_instruction=sys_instruct
                 )
                 
@@ -244,10 +244,8 @@ else:
                 raw_text = response.text.strip()
                 
                 # --- LIMPIEZA AUTOMÁTICA DEL CUADRO NEGRO ---
-                # Elimina cualquier bloque de código Markdown (```...```) donde se cuelen metadatos o análisis
                 clean_text = re.sub(r'```[\s\S]*?```', '', raw_text).strip()
                 
-                # Si la respuesta contenía múltiples párrafos duplicados por la autoevaluación, toma el último válido
                 if "¡Hola!" in clean_text:
                     parts = clean_text.split("¡Hola!")
                     clean_text = "¡Hola!" + parts[-1]
