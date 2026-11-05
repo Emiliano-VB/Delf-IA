@@ -1,6 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 import re
 from supabase import create_client, Client
 
@@ -91,7 +92,7 @@ REGLAS OBLIGATORIAS:
 
 # 2. Inicialización de Clientes
 try:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    ai_client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
     supabase: Client = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 except Exception as e:
     st.error(f"Error al inicializar credenciales o servicios: {e}")
@@ -228,20 +229,25 @@ else:
 
         with st.chat_message("assistant"):
             try:
-                model = genai.GenerativeModel(
-                    model_name="gemini-1.5-flash",
-                    system_instruction=sys_instruct
+                formatted_contents = []
+                for msg in st.session_state.messages:
+                    role = "user" if msg["role"] == "user" else "model"
+                    formatted_contents.append(
+                        types.Content(
+                            role=role,
+                            parts=[types.Part.from_text(text=msg["content"])]
+                        )
+                    )
+
+                response = ai_client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=formatted_contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=sys_instruct
+                    )
                 )
                 
-                formatted_history = []
-                for msg in st.session_state.messages[:-1]:
-                    role = "user" if msg["role"] == "user" else "model"
-                    formatted_history.append({"role": role, "parts": [msg["content"]]})
-
-                chat = model.start_chat(history=formatted_history)
-                response = chat.send_message(prompt)
-                
-                raw_text = response.text.strip()
+                raw_text = response.text.strip() if response.text else ""
                 
                 # --- LIMPIEZA AUTOMÁTICA DEL CUADRO NEGRO ---
                 clean_text = re.sub(r'```[\s\S]*?```', '', raw_text).strip()
