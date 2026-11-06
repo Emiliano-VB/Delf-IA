@@ -4,8 +4,6 @@ from google import genai
 from google.genai import types
 import re
 from supabase import create_client, Client
-
-# 1. Configuración de la página
 st.set_page_config(page_title="Delf-IA - Tutor Socrático", page_icon="🐬", layout="wide")
 
 # --- ESTILOS CSS PERSONALIZADOS (CELESTE OSCURO / AZUL AGUA PROFUNDO) ---
@@ -87,7 +85,7 @@ REGLAS OBLIGATORIAS:
 1. NUNCA des la respuesta directa ni resuelvas el problema por el alumno.
 2. Guíalo paso a paso haciéndole preguntas sencillas y breves.
 3. Responde de inmediato de forma motivadora y cercana.
-4. NUNCA generes bloques de código, listas de verificación ("No direct answer?", "No metadata?", etc.) ni notas de análisis interno.
+4. Jamás muestres notas internas de análisis ni metadatos.
 """
 
 # 2. Inicialización de Clientes
@@ -229,38 +227,27 @@ else:
 
         with st.chat_message("assistant"):
             try:
-                formatted_contents = []
-                for msg in st.session_state.messages:
-                    role = "user" if msg["role"] == "user" else "model"
-                    formatted_contents.append(
-                        types.Content(
-                            role=role,
-                            parts=[types.Part.from_text(text=msg["content"])]
-                        )
-                    )
-
-                response = ai_client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=formatted_contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=sys_instruct
-                    )
+                # Modelo ultra rápido directo sin bucles de búsqueda
+                model = genai.GenerativeModel(
+                    model_name="gemini-1.5-flash",
+                    system_instruction=sys_instruct
                 )
                 
-                raw_text = response.text.strip() if response.text else ""
-                
-                # --- LIMPIEZA AUTOMÁTICA DEL CUADRO NEGRO ---
-                clean_text = re.sub(r'```[\s\S]*?```', '', raw_text).strip()
-                
-                if "¡Hola!" in clean_text:
-                    parts = clean_text.split("¡Hola!")
-                    clean_text = "¡Hola!" + parts[-1]
+                # Formato optimizado de historial
+                formatted_history = []
+                for msg in st.session_state.messages[:-1]:
+                    role = "user" if msg["role"] == "user" else "model"
+                    formatted_history.append({"role": role, "parts": [msg["content"]]})
 
-                response_text = clean_text.strip()
+                chat = model.start_chat(history=formatted_history)
+                response = chat.send_message(prompt)
+                
+                response_text = response.text.strip()
 
                 st.markdown(response_text)
                 st.session_state.messages.append({"role": "assistant", "content": response_text})
                 
+                # Actualización de Supabase en segundo plano
                 try:
                     supabase.table("chat_history").insert({"user_id": user_id, "role": "assistant", "content": response_text}).execute()
                     new_xp = profile.get("xp", 0) + 15
