@@ -228,8 +228,9 @@ else:
 
         with st.chat_message("assistant"):
             response_text = ""
-            candidate_models = ["gemini-3.8-flash", "gemini-2.5-flash"]
+            last_error = ""
             
+            # Formato de contenidos para google-genai
             formatted_contents = []
             for msg in st.session_state.messages:
                 role = "user" if msg["role"] == "user" else "model"
@@ -240,6 +241,9 @@ else:
                     )
                 )
 
+            # Probar lista extendida de modelos oficiales de Google
+            candidate_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"]
+            
             for model_name in candidate_models:
                 try:
                     response = ai_client.models.generate_content(
@@ -253,7 +257,8 @@ else:
                         response_text = response.text.strip()
                         if response_text:
                             break
-                except Exception:
+                except Exception as err:
+                    last_error = str(err)
                     continue
 
             if response_text:
@@ -279,4 +284,4 @@ else:
                 except Exception:
                     pass
             else:
-                st.error("No se pudo obtener respuesta de la API. Intenta nuevamente en unos momentos.")
+                st.error(f"Error de conexión con la API: {last_error}")
