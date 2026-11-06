@@ -2,7 +2,6 @@ import streamlit as st
 import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
-import re
 import time
 from supabase import create_client, Client
 
@@ -228,40 +227,38 @@ else:
             pass
 
         with st.chat_message("assistant"):
-            formatted_contents = []
-            for msg in st.session_state.messages:
+            # Construcción limpia de historial según exigencias de google-genai
+            history_contents = []
+            for msg in st.session_state.messages[:-1]:
                 role = "user" if msg["role"] == "user" else "model"
-                formatted_contents.append(
+                history_contents.append(
                     types.Content(
                         role=role,
                         parts=[types.Part.from_text(text=msg["content"])]
                     )
                 )
 
-            # Lista de modelos a intentar en secuencia si alguno reporta saturación (503)
-            candidate_models = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
             response_text = ""
-            last_error = ""
-
+            # Lista de nombres de modelos estables estándar
+            candidate_models = ["gemini-2.0-flash", "gemini-1.5-flash"]
+            
             for model_name in candidate_models:
-                # Reintentos con backoff progresivo si el servidor está sobrecargado
-                for attempt in range(2):
+                for attempt in range(3):
                     try:
-                        response = ai_client.models.generate_content(
+                        chat = ai_client.chats.create(
                             model=model_name,
-                            contents=formatted_contents,
+                            history=history_contents,
                             config=types.GenerateContentConfig(
                                 system_instruction=sys_instruct
                             )
                         )
-                        if response and hasattr(response, "text") and response.text:
-                            response_text = response.text.strip()
+                        res = chat.send_message(prompt)
+                        if res and hasattr(res, "text") and res.text:
+                            response_text = res.text.strip()
                             break
                     except Exception as err:
-                        last_error = str(err)
-                        # Si es error de saturación 503, espera 1.5 segundos antes de reintentar
                         if "503" in str(err) or "UNAVAILABLE" in str(err):
-                            time.sleep(1.5)
+                            time.sleep(2)
                         else:
                             break
                 if response_text:
@@ -291,4 +288,4 @@ else:
                 except Exception:
                     pass
             else:
-                st.error("El servidor de Google está experimentando alta demanda en este momento. Por favor presiona 'Enter' de nuevo en unos segundos.")
+                st.error("No se pudo obtener respuesta del tutor. Por favor intenta enviar tu mensaje nuevamente.")
