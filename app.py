@@ -4,6 +4,7 @@ from google import genai
 from google.genai import types
 import re
 from supabase import create_client, Client
+
 st.set_page_config(page_title="Delf-IA - Tutor Socrático", page_icon="🐬", layout="wide")
 
 # --- ESTILOS CSS PERSONALIZADOS (CELESTE OSCURO / AZUL AGUA PROFUNDO) ---
@@ -227,22 +228,26 @@ else:
 
         with st.chat_message("assistant"):
             try:
-                # Modelo ultra rápido directo sin bucles de búsqueda
-                model = genai.GenerativeModel(
-                    model_name="gemini-1.5-flash",
-                    system_instruction=sys_instruct
+                # Formato de contenidos para google-genai
+                formatted_contents = []
+                for msg in st.session_state.messages:
+                    role = "user" if msg["role"] == "user" else "model"
+                    formatted_contents.append(
+                        types.Content(
+                            role=role,
+                            parts=[types.Part.from_text(text=msg["content"])]
+                        )
+                    )
+
+                response = ai_client.models.generate_content(
+                    model="gemini-1.5-flash",
+                    contents=formatted_contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=sys_instruct
+                    )
                 )
                 
-                # Formato optimizado de historial
-                formatted_history = []
-                for msg in st.session_state.messages[:-1]:
-                    role = "user" if msg["role"] == "user" else "model"
-                    formatted_history.append({"role": role, "parts": [msg["content"]]})
-
-                chat = model.start_chat(history=formatted_history)
-                response = chat.send_message(prompt)
-                
-                response_text = response.text.strip()
+                response_text = response.text.strip() if response.text else ""
 
                 st.markdown(response_text)
                 st.session_state.messages.append({"role": "assistant", "content": response_text})
