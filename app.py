@@ -227,45 +227,46 @@ else:
             pass
 
         with st.chat_message("assistant"):
-            try:
-                # Formato de contenidos para google-genai
-                formatted_contents = []
-                for msg in st.session_state.messages:
-                    role = "user" if msg["role"] == "user" else "model"
-                    formatted_contents.append(
-                        types.Content(
-                            role=role,
-                            parts=[types.Part.from_text(text=msg["content"])]
-                        )
+            response_text = ""
+            candidate_models = ["gemini-3.8-flash", "gemini-2.5-flash"]
+            
+            formatted_contents = []
+            for msg in st.session_state.messages:
+                role = "user" if msg["role"] == "user" else "model"
+                formatted_contents.append(
+                    types.Content(
+                        role=role,
+                        parts=[types.Part.from_text(text=msg["content"])]
                     )
+                )
 
-                # Intento con modelo principal e ingenio de respaldo (fallback)
+            for model_name in candidate_models:
                 try:
                     response = ai_client.models.generate_content(
-                        model="gemini-3.8-flash",
+                        model=model_name,
                         contents=formatted_contents,
                         config=types.GenerateContentConfig(
                             system_instruction=sys_instruct
                         )
                     )
-                except Exception as model_err:
-                    # Si el modelo principal falla o se satura (503), conmuta a gemini-2.5-flash
-                    response = ai_client.models.generate_content(
-                        model="gemini-2.5-flash",
-                        contents=formatted_contents,
-                        config=types.GenerateContentConfig(
-                            system_instruction=sys_instruct
-                        )
-                    )
-                
-                response_text = response.text.strip() if response.text else ""
+                    if response and hasattr(response, "text") and response.text:
+                        response_text = response.text.strip()
+                        if response_text:
+                            break
+                except Exception:
+                    continue
 
+            if response_text:
                 st.markdown(response_text)
                 st.session_state.messages.append({"role": "assistant", "content": response_text})
                 
-                # Actualización de Supabase en segundo plano
                 try:
-                    supabase.table("chat_history").insert({"user_id": user_id, "role": "assistant", "content": response_text}).execute()
+                    supabase.table("chat_history").insert({
+                        "user_id": user_id, 
+                        "role": "assistant", 
+                        "content": response_text
+                    }).execute()
+                    
                     new_xp = profile.get("xp", 0) + 15
                     new_level = (new_xp // 100) + 1
                     new_mins = profile.get("minutes_today", 0) + 2
@@ -277,6 +278,5 @@ else:
                     }).eq("id", user_id).execute()
                 except Exception:
                     pass
-
-            except Exception as e:
-                st.error(f"Error de conexión: {e}")
+            else:
+                st.error("No se pudo obtener respuesta de la API. Intenta nuevamente en unos momentos.")
