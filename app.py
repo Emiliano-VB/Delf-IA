@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
 import re
+import time
 from supabase import create_client, Client
 
 st.set_page_config(page_title="Delf-IA - Tutor Socrático", page_icon="🐬", layout="wide")
@@ -227,7 +228,6 @@ else:
             pass
 
         with st.chat_message("assistant"):
-            # Formato de contenidos para google-genai
             formatted_contents = []
             for msg in st.session_state.messages:
                 role = "user" if msg["role"] == "user" else "model"
@@ -238,43 +238,57 @@ else:
                     )
                 )
 
-            try:
-                # Llamada usando el modelo indicado por la API
-                response = ai_client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=formatted_contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=sys_instruct
-                    )
-                )
-                
-                response_text = response.text.strip() if (response and response.text) else ""
+            # Lista de modelos a intentar en secuencia si alguno reporta saturación (503)
+            candidate_models = ["gemini-3.8-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+            response_text = ""
+            last_error = ""
 
-                if response_text:
-                    st.markdown(response_text)
-                    st.session_state.messages.append({"role": "assistant", "content": response_text})
-                    
-                    # Actualización de Supabase en segundo plano
+            for model_name in candidate_models:
+                # Reintentos con backoff progresivo si el servidor está sobrecargado
+                for attempt in range(2):
                     try:
-                        supabase.table("chat_history").insert({
-                            "user_id": user_id, 
-                            "role": "assistant", 
-                            "content": response_text
-                        }).execute()
-                        
-                        new_xp = profile.get("xp", 0) + 15
-                        new_level = (new_xp // 100) + 1
-                        new_mins = profile.get("minutes_today", 0) + 2
-                        
-                        supabase.table("profiles").update({
-                            "xp": new_xp,
-                            "level": new_level,
-                            "minutes_today": new_mins
-                        }).eq("id", user_id).execute()
-                    except Exception:
-                        pass
-                else:
-                    st.error("El modelo no devolvió texto. Por favor intenta enviar tu duda nuevamente.")
+                        response = ai_client.models.generate_content(
+                            model=model_name,
+                            contents=formatted_contents,
+                            config=types.GenerateContentConfig(
+                                system_instruction=sys_instruct
+                            )
+                        )
+                        if response and hasattr(response, "text") and response.text:
+                            response_text = response.text.strip()
+                            break
+                    except Exception as err:
+                        last_error = str(err)
+                        # Si es error de saturación 503, espera 1.5 segundos antes de reintentar
+                        if "503" in str(err) or "UNAVAILABLE" in str(err):
+                            time.sleep(1.5)
+                        else:
+                            break
+                if response_text:
+                    break
 
-            except Exception as err:
-                st.error(f"Error de conexión con la API: {err}")
+            if response_text:
+                st.markdown(response_text)
+                st.session_state.messages.append({"role": "assistant", "content": response_text})
+                
+                # Actualización de Supabase en segundo plano
+                try:
+                    supabase.table("chat_history").insert({
+                        "user_id": user_id, 
+                        "role": "assistant", 
+                        "content": response_text
+                    }).execute()
+                    
+                    new_xp = profile.get("xp", 0) + 15
+                    new_level = (new_xp // 100) + 1
+                    new_mins = profile.get("minutes_today", 0) + 2
+                    
+                    supabase.table("profiles").update({
+                        "xp": new_xp,
+                        "level": new_level,
+                        "minutes_today": new_mins
+                    }).eq("id", user_id).execute()
+                except Exception:
+                    pass
+            else:
+                st.error("El servidor de Google está experimentando alta demanda en este momento. Por favor presiona 'Enter' de nuevo en unos segundos.")
