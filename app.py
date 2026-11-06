@@ -226,7 +226,7 @@ else:
         except Exception:
             pass
 
-with st.chat_message("assistant"):
+        with st.chat_message("assistant"):
             try:
                 # Formato de contenidos para google-genai
                 formatted_contents = []
@@ -249,9 +249,9 @@ with st.chat_message("assistant"):
                         )
                     )
                 except Exception as model_err:
-                    # Si el modelo principal está saturado (503), intentamos con el de respaldo
+                    # Si el modelo principal falla o se satura (503), conmuta a gemini-2.5-flash
                     response = ai_client.models.generate_content(
-                        model="gemini-1.5-flash",
+                        model="gemini-2.5-flash",
                         contents=formatted_contents,
                         config=types.GenerateContentConfig(
                             system_instruction=sys_instruct
