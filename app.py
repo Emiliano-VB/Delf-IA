@@ -227,9 +227,6 @@ else:
             pass
 
         with st.chat_message("assistant"):
-            response_text = ""
-            last_error = ""
-            
             # Formato de contenidos para google-genai
             formatted_contents = []
             for msg in st.session_state.messages:
@@ -241,47 +238,43 @@ else:
                     )
                 )
 
-            # Probar lista extendida de modelos oficiales de Google
-            candidate_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash"]
-            
-            for model_name in candidate_models:
-                try:
-                    response = ai_client.models.generate_content(
-                        model=model_name,
-                        contents=formatted_contents,
-                        config=types.GenerateContentConfig(
-                            system_instruction=sys_instruct
-                        )
+            try:
+                # Llamada usando el modelo indicado por la API
+                response = ai_client.models.generate_content(
+                    model="gemini-3.8-flash",
+                    contents=formatted_contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=sys_instruct
                     )
-                    if response and hasattr(response, "text") and response.text:
-                        response_text = response.text.strip()
-                        if response_text:
-                            break
-                except Exception as err:
-                    last_error = str(err)
-                    continue
-
-            if response_text:
-                st.markdown(response_text)
-                st.session_state.messages.append({"role": "assistant", "content": response_text})
+                )
                 
-                try:
-                    supabase.table("chat_history").insert({
-                        "user_id": user_id, 
-                        "role": "assistant", 
-                        "content": response_text
-                    }).execute()
+                response_text = response.text.strip() if (response and response.text) else ""
+
+                if response_text:
+                    st.markdown(response_text)
+                    st.session_state.messages.append({"role": "assistant", "content": response_text})
                     
-                    new_xp = profile.get("xp", 0) + 15
-                    new_level = (new_xp // 100) + 1
-                    new_mins = profile.get("minutes_today", 0) + 2
-                    
-                    supabase.table("profiles").update({
-                        "xp": new_xp,
-                        "level": new_level,
-                        "minutes_today": new_mins
-                    }).eq("id", user_id).execute()
-                except Exception:
-                    pass
-            else:
-                st.error(f"Error de conexión con la API: {last_error}")
+                    # Actualización de Supabase en segundo plano
+                    try:
+                        supabase.table("chat_history").insert({
+                            "user_id": user_id, 
+                            "role": "assistant", 
+                            "content": response_text
+                        }).execute()
+                        
+                        new_xp = profile.get("xp", 0) + 15
+                        new_level = (new_xp // 100) + 1
+                        new_mins = profile.get("minutes_today", 0) + 2
+                        
+                        supabase.table("profiles").update({
+                            "xp": new_xp,
+                            "level": new_level,
+                            "minutes_today": new_mins
+                        }).eq("id", user_id).execute()
+                    except Exception:
+                        pass
+                else:
+                    st.error("El modelo no devolvió texto. Por favor intenta enviar tu duda nuevamente.")
+
+            except Exception as err:
+                st.error(f"Error de conexión con la API: {err}")
