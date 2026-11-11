@@ -5,7 +5,7 @@ import AuthPanel from '../components/AuthPanel';
 import ChatMessage from '../components/ChatMessage';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
-import { GROUPS, HISTORY_LOAD_LIMIT, MAX_INPUT_CHARS } from '../lib/config';
+import { HISTORY_LOAD_LIMIT, MAX_INPUT_CHARS } from '../lib/config';
 import { getSupabase } from '../lib/supabaseClient';
 
 const EMPTY_PROFILE = {
@@ -14,7 +14,6 @@ const EMPTY_PROFILE = {
   level: 1,
   streak: 1,
   minutes_today: 0,
-  group_name: GROUPS[0],
 };
 
 // Lee el perfil; si no existe (primer inicio de sesión), lo crea con los datos del registro.
@@ -28,7 +27,6 @@ async function loadOrCreateProfile(supabase, user) {
     id: user.id,
     first_name: meta.first_name || 'Estudiante',
     last_name: meta.last_name || '',
-    group_name: meta.group_name || GROUPS[0],
     xp: 0,
     level: 1,
     streak: 1,
@@ -121,14 +119,13 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, supabase]);
 
-  // 3. Tabla de clasificación del grupo
-  const group = profile?.group_name;
+  // 3. Tabla de clasificación general (se carga cuando el perfil ya está listo)
+  const hasProfile = Boolean(profile);
   const refreshLeaderboard = useCallback(async () => {
-    if (!supabase || !group) return;
+    if (!supabase || !hasProfile) return;
     const { data, error } = await supabase
       .from('profiles')
       .select('first_name, xp')
-      .eq('group_name', group)
       .order('xp', { ascending: false })
       .limit(5);
     if (error) {
@@ -137,7 +134,7 @@ export default function Home() {
     } else {
       setLeaderboard(data || []);
     }
-  }, [supabase, group]);
+  }, [supabase, hasProfile]);
 
   useEffect(() => {
     refreshLeaderboard();

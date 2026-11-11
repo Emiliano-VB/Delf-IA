@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Header from './Header';
-import { GROUPS } from '../lib/config';
 
 export default function AuthPanel({ supabase }) {
   const [tab, setTab] = useState('login');
@@ -16,7 +15,6 @@ export default function AuthPanel({ supabase }) {
   const [regPass, setRegPass] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [group, setGroup] = useState(GROUPS[0]);
 
   function switchTab(next) {
     setTab(next);
@@ -58,7 +56,7 @@ export default function AuthPanel({ supabase }) {
       email: regEmail.trim(),
       password: regPass,
       options: {
-        data: { first_name: firstName.trim(), last_name: lastName.trim(), group_name: group },
+        data: { first_name: firstName.trim(), last_name: lastName.trim() },
       },
     });
     if (error) {
@@ -122,16 +120,6 @@ export default function AuthPanel({ supabase }) {
           <label className="field">
             <span>Apellido</span>
             <input type="text" autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} />
-          </label>
-          <label className="field">
-            <span>Grupo</span>
-            <select value={group} onChange={(e) => setGroup(e.target.value)}>
-              {GROUPS.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
           </label>
           <button type="submit" className="btn block" disabled={busy}>
             {busy ? 'Creando cuenta…' : 'Crear Cuenta'}

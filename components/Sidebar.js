@@ -44,7 +44,7 @@ export default function Sidebar({ profile, profileOk, leaderboard, onSignOut }) 
       </div>
 
       <hr />
-      <h3>📊 Tabla de Clasificación ({profile.group_name || '112'})</h3>
+      <h3>📊 Tabla de Clasificación</h3>
       {leaderboard === null ? (
         <p className="muted">No se pudo cargar la tabla de líderes.</p>
       ) : (
