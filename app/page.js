@@ -181,7 +181,11 @@ export default function Home() {
       }
     } catch (err) {
       console.error(err);
-      setChatError(err.message || 'No se pudo obtener respuesta del tutor. Intenta de nuevo.');
+      setChatError(
+        err instanceof TypeError
+          ? 'No se pudo conectar con el tutor. Revisa tu conexión e intenta de nuevo.'
+          : err.message || 'No se pudo obtener respuesta del tutor. Intenta de nuevo.',
+      );
     } finally {
       setSending(false);
     }

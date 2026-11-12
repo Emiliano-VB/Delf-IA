@@ -59,10 +59,7 @@ export async function POST(request) {
   if (historyError) console.error('No se pudo leer el historial:', historyError.message);
   const previous = (rows || []).reverse();
 
-  const { error: saveUserError } = await supabase
-    .from('chat_history')
-    .insert({ user_id: userId, role: 'user', content: message });
-  if (saveUserError) console.error('No se pudo guardar el mensaje del alumno:', saveUserError.message);
+  const askedAt = new Date().toISOString();
 
   // 3. Respuesta del tutor (reintentos + fallback entre modelos).
   let reply = null;
@@ -76,10 +73,13 @@ export async function POST(request) {
     return fail('No se pudo obtener respuesta del tutor. Intenta enviar tu mensaje nuevamente.', 502);
   }
 
-  const { error: saveReplyError } = await supabase
-    .from('chat_history')
-    .insert({ user_id: userId, role: 'assistant', content: reply });
-  if (saveReplyError) console.error('No se pudo guardar la respuesta del tutor:', saveReplyError.message);
+  // Se guardan juntos y solo si hubo respuesta: así un fallo no deja mensajes huérfanos
+  // en el historial (con fechas distintas para conservar el orden).
+  const { error: saveError } = await supabase.from('chat_history').insert([
+    { user_id: userId, role: 'user', content: message, created_at: askedAt },
+    { user_id: userId, role: 'assistant', content: reply, created_at: new Date().toISOString() },
+  ]);
+  if (saveError) console.error('No se pudo guardar la conversación:', saveError.message);
 
   // 4. Progreso (solo si el perfil se leyó bien, para no sobrescribir con valores por defecto).
   let updatedProfile = null;
