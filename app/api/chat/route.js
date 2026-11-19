@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { askTutor, getModels, prepareContents } from '../../../lib/tutor';
+import { tutorRespond } from '../../../lib/tutorRules';
 import {
   HISTORY_SEND_LIMIT,
   MAX_INPUT_CHARS,
@@ -18,8 +18,8 @@ function fail(message, status) {
 export async function POST(request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseKey || !process.env.GEMINI_API_KEY) {
-    console.error('Faltan variables de entorno (Supabase o GEMINI_API_KEY)');
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Faltan variables de entorno de Supabase');
     return fail('El servidor no está configurado correctamente.', 500);
   }
 
@@ -61,13 +61,12 @@ export async function POST(request) {
 
   const askedAt = new Date().toISOString();
 
-  // 3. Respuesta del tutor (reintentos + fallback entre modelos).
+  // 3. Respuesta del tutor (motor de reglas local: sin IA externa, sin claves).
   let reply = null;
   try {
-    const contents = prepareContents(previous, message);
-    ({ text: reply } = await askTutor(contents, getModels()));
+    reply = tutorRespond(message, previous);
   } catch (err) {
-    console.error('Error al consultar a Gemini:', err);
+    console.error('Error en el tutor:', err);
   }
   if (!reply) {
     return fail('No se pudo obtener respuesta del tutor. Intenta enviar tu mensaje nuevamente.', 502);
