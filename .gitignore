@@ -1,0 +1,14 @@
+# Secretos: NUNCA se suben al repositorio
+.env
+.env.local
+.env.*.local
+
+# Dependencias y builds
+node_modules/
+.next/
+out/
+.vercel/
+
+# Sistema
+.DS_Store
+*.log
