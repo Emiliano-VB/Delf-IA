@@ -32,7 +32,11 @@ export default function AuthPanel({ supabase }) {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) {
       console.error('Fallo de inicio de sesión:', error.message);
-      setNotice({ type: 'error', text: 'No se pudo iniciar sesión. Revisa tu correo y contraseña.' });
+      const text =
+        error.code === 'email_not_confirmed' || /not confirmed/i.test(error.message)
+          ? 'Tu correo aún no está confirmado. Revisa tu bandeja (y spam) y abre el enlace de confirmación.'
+          : 'No se pudo iniciar sesión. Revisa tu correo y contraseña.';
+      setNotice({ type: 'error', text });
     }
     // Si todo sale bien, la página detecta la sesión y muestra el chat.
     setBusy(false);
@@ -61,7 +65,13 @@ export default function AuthPanel({ supabase }) {
     });
     if (error) {
       console.error('Fallo en el registro:', error.message);
-      setNotice({ type: 'error', text: 'No se pudo crear la cuenta. Verifica los datos o prueba con otro correo.' });
+      const limited = error.status === 429 || /rate limit|after \d+ seconds/i.test(error.message);
+      setNotice({
+        type: 'error',
+        text: limited
+          ? 'Hay muchos intentos seguidos. Espera un minuto e inténtalo de nuevo.'
+          : 'No se pudo crear la cuenta. Verifica los datos o prueba con otro correo.',
+      });
     } else if (!data.session) {
       setNotice({
         type: 'success',
