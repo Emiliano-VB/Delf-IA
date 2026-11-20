@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { tutorRespond } from '../../../lib/tutorRules';
+import { tutorRespondFull } from '../../../lib/tutorRules';
 import {
   HISTORY_SEND_LIMIT,
   MAX_INPUT_CHARS,
@@ -63,8 +63,10 @@ export async function POST(request) {
 
   // 3. Respuesta del tutor (motor de reglas local: sin IA externa, sin claves).
   let reply = null;
+  let bonusXp = 0;
+  let achievement = null;
   try {
-    reply = tutorRespond(message, previous);
+    ({ reply, bonusXp, achievement } = tutorRespondFull(message, previous));
   } catch (err) {
     console.error('Error en el tutor:', err);
   }
@@ -90,7 +92,7 @@ export async function POST(request) {
   if (profileError || !profile) {
     console.error('No se pudo leer el perfil:', profileError?.message);
   } else {
-    const xp = (profile.xp ?? 0) + XP_PER_REPLY;
+    const xp = (profile.xp ?? 0) + XP_PER_REPLY + bonusXp;
     const next = {
       xp,
       level: Math.floor(xp / 100) + 1,
@@ -101,5 +103,5 @@ export async function POST(request) {
     else updatedProfile = next;
   }
 
-  return Response.json({ reply, profile: updatedProfile });
+  return Response.json({ reply, profile: updatedProfile, achievement });
 }
