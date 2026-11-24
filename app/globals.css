@@ -349,3 +349,22 @@ textarea:focus {
     padding: 16px;
   }
 }
+
+.help {
+  background: rgba(0, 229, 255, 0.07);
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 8px 0 12px;
+  font-size: 0.92rem;
+}
+.help summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--soft);
+}
+.help ol {
+  margin: 8px 0 2px;
+  padding-left: 20px;
+  line-height: 1.5;
+}

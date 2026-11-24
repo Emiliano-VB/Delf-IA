@@ -233,6 +233,16 @@ export default function Home() {
       <main className="main">
         <Header />
         <p className="caption">¡Aprende paso a paso! Te guiaré para encontrar la respuesta por ti mismo.</p>
+        <details className="help" open={messages.length === 0}>
+          <summary>ℹ️ Cómo usar Delf-IA</summary>
+          <ol>
+            <li>Escribe <b>«ejercicio»</b> (o «hola») y te pongo uno de mecatrónica o electromecánica.</li>
+            <li>Responde así: <b>«La respuesta es: …»</b> (o solo el número). Si es correcta, te felicito y ganas un <b>logro</b>.</li>
+            <li>Si te trabas escribe <b>«pista»</b>; para cambiar de ejercicio escribe <b>«otro»</b>. Nunca te daré la respuesta: te guío para que la encuentres tú.</li>
+            <li>Entre más difícil el ejercicio, mejor el premio: ⚡ → ⚙️ → 🤖 → 📡 → 🏆 (y más XP).</li>
+            <li>También puedes escribir tus propios ejercicios: ecuaciones, operaciones, fracciones, trigonometría, derivadas…</li>
+          </ol>
+        </details>
         <hr />
 
         <div className="chat">
