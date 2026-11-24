@@ -1,6 +1,16 @@
 import { DAILY_GOAL_MIN } from '../lib/config';
 
-export default function Sidebar({ profile, profileOk, leaderboard, onSignOut }) {
+const BADGES = {
+  1: { icon: '⚡', name: 'Chispa' },
+  2: { icon: '⚙️', name: 'Engrane' },
+  3: { icon: '🤖', name: 'Servo' },
+  4: { icon: '📡', name: 'Sensor' },
+  5: { icon: '🏆', name: 'Maestro' },
+};
+
+export default function Sidebar({ profile, profileOk, leaderboard, achievements = [], onSignOut }) {
+  const counts = [1, 2, 3, 4, 5].map((l) => achievements.filter((a) => a.level === l).length);
+  const recent = achievements.slice(0, 3);
   const mins = profile.minutes_today ?? 0;
   const pct = Math.min(mins / DAILY_GOAL_MIN, 1) * 100;
 
@@ -42,6 +52,29 @@ export default function Sidebar({ profile, profileOk, leaderboard, onSignOut }) 
           <div className="bar-fill" style={{ width: `${pct}%` }} />
         </div>
       </div>
+
+      <hr />
+      <h3>🎖️ Vitrina de Logros</h3>
+      <div className="badges">
+        {[1, 2, 3, 4, 5].map((l) => (
+          <div key={l} className={`badge ${counts[l - 1] ? 'on' : ''}`} title={`${BADGES[l].name} (nivel ${l})`}>
+            <span className="badge-icon">{BADGES[l].icon}</span>
+            <span className="badge-count">×{counts[l - 1]}</span>
+          </div>
+        ))}
+      </div>
+      {recent.length === 0 ? (
+        <p className="muted">Resuelve ejercicios para ganar tus primeros logros.</p>
+      ) : (
+        <ul className="recent-badges">
+          {recent.map((a, i) => (
+            <li key={`${a.created_at}-${i}`}>
+              {BADGES[a.level]?.icon} <strong>{a.name}</strong>
+              {a.topic ? <span className="muted"> · {a.topic}</span> : null}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <hr />
       <h3>📊 Tabla de Clasificación</h3>

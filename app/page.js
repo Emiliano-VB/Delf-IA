@@ -47,6 +47,8 @@ export default function Home() {
   const [profileOk, setProfileOk] = useState(true);
   const [leaderboard, setLeaderboard] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [achievements, setAchievements] = useState([]);
+  const [newAchievement, setNewAchievement] = useState(null);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState('');
@@ -79,6 +81,7 @@ export default function Home() {
     if (!userId || !supabase) {
       setProfile(null);
       setMessages([]);
+      setAchievements([]);
       setLeaderboard([]);
       setChatError('');
       return undefined;
@@ -110,6 +113,18 @@ export default function Home() {
       } catch (err) {
         console.error('No se pudo cargar el historial:', err);
         if (!cancelled) setMessages([]);
+      }
+      try {
+        const { data, error } = await supabase
+          .from('achievements')
+          .select('level, name, topic, created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(300);
+        if (error) throw error;
+        if (!cancelled) setAchievements(data || []);
+      } catch (err) {
+        console.error('No se pudieron cargar los logros:', err);
       }
     })();
     return () => {
@@ -175,6 +190,12 @@ export default function Home() {
       if (!res.ok) throw new Error(payload.error || 'No se pudo obtener respuesta del tutor.');
 
       setMessages((prev) => [...prev, { role: 'assistant', content: payload.reply }]);
+      if (payload.achievement) {
+        const a = payload.achievement;
+        setAchievements((prev) => [{ level: a.level, name: a.name, topic: a.topic, created_at: new Date().toISOString() }, ...prev]);
+        setNewAchievement(a);
+        setTimeout(() => setNewAchievement(null), 6000);
+      }
       if (payload.profile) {
         setProfile((prev) => ({ ...(prev || EMPTY_PROFILE), ...payload.profile }));
         refreshLeaderboard();
@@ -228,9 +249,21 @@ export default function Home() {
         profile={profile || EMPTY_PROFILE}
         profileOk={profileOk}
         leaderboard={leaderboard}
+        achievements={achievements}
         onSignOut={handleSignOut}
       />
       <main className="main">
+        {newAchievement && (
+          <div className="toast-achievement" role="status">
+            <span className="toast-icon">{newAchievement.icon}</span>
+            <div>
+              <strong>¡Logro desbloqueado!</strong>
+              <div>
+                {newAchievement.name} · +{newAchievement.xp} XP
+              </div>
+            </div>
+          </div>
+        )}
         <Header />
         <p className="caption">¡Aprende paso a paso! Te guiaré para encontrar la respuesta por ti mismo.</p>
         <details className="help" open={messages.length === 0}>

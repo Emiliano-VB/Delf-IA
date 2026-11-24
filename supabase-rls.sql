@@ -41,3 +41,20 @@ create policy "chat_insert_own"
 -- Limitación conocida: la política de update deja a un alumno editar su propia fila,
 -- incluido `xp`. Para impedir trampas habría que mover el XP a una función RPC
 -- (security definer) o a una tabla aparte que solo escriba el servidor.
+
+-- ---------- achievements (vitrina de logros) ----------
+-- Ya aplicado en el proyecto. Cada alumno solo ve y crea sus propios logros.
+create table if not exists public.achievements (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  level smallint not null check (level between 1 and 5),
+  name text not null,
+  topic text,
+  created_at timestamptz not null default now()
+);
+create index if not exists achievements_user_idx on public.achievements (user_id, created_at desc);
+alter table public.achievements enable row level security;
+drop policy if exists "achievements_select_own" on public.achievements;
+create policy "achievements_select_own" on public.achievements for select to authenticated using (auth.uid() = user_id);
+drop policy if exists "achievements_insert_own" on public.achievements;
+create policy "achievements_insert_own" on public.achievements for insert to authenticated with check (auth.uid() = user_id);

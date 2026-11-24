@@ -52,7 +52,7 @@ export async function POST(request) {
   // 2. Historial reciente (antes de guardar el mensaje nuevo).
   const { data: rows, error: historyError } = await supabase
     .from('chat_history')
-    .select('role, content')
+    .select('role, content, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(HISTORY_SEND_LIMIT);
@@ -60,13 +60,17 @@ export async function POST(request) {
   const previous = (rows || []).reverse();
 
   const askedAt = new Date().toISOString();
+  // Anti-spam: si el alumno manda mensajes con menos de 15 s de diferencia, no suma el XP base.
+  const lastUser = [...previous].reverse().find((r) => r.role === 'user');
+  const tooFast = lastUser?.created_at ? Date.now() - new Date(lastUser.created_at).getTime() < 15000 : false;
+
 
   // 3. Respuesta del tutor (motor de reglas local: sin IA externa, sin claves).
   let reply = null;
   let bonusXp = 0;
   let achievement = null;
   try {
-    ({ reply, bonusXp, achievement } = tutorRespondFull(message, previous));
+    ({ reply, bonusXp, achievement } = tutorRespondFull(message, previous, { userId }));
   } catch (err) {
     console.error('Error en el tutor:', err);
   }
@@ -82,6 +86,17 @@ export async function POST(request) {
   ]);
   if (saveError) console.error('No se pudo guardar la conversación:', saveError.message);
 
+  // Logro: se guarda para la vitrina del alumno.
+  if (achievement) {
+    const { error: achError } = await supabase.from('achievements').insert({
+      user_id: userId,
+      level: achievement.level,
+      name: achievement.name,
+      topic: achievement.topic || null,
+    });
+    if (achError) console.error('No se pudo guardar el logro:', achError.message);
+  }
+
   // 4. Progreso (solo si el perfil se leyó bien, para no sobrescribir con valores por defecto).
   let updatedProfile = null;
   const { data: profile, error: profileError } = await supabase
@@ -92,7 +107,7 @@ export async function POST(request) {
   if (profileError || !profile) {
     console.error('No se pudo leer el perfil:', profileError?.message);
   } else {
-    const xp = (profile.xp ?? 0) + XP_PER_REPLY + bonusXp;
+    const xp = (profile.xp ?? 0) + (tooFast ? 0 : XP_PER_REPLY) + bonusXp;
     const next = {
       xp,
       level: Math.floor(xp / 100) + 1,
