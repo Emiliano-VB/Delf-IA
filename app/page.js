@@ -48,10 +48,15 @@ export default function Home() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [messages, setMessages] = useState([]);
   const [achievements, setAchievements] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [activeId, setActiveId] = useState(null); // null = chat nuevo (aún sin guardar)
+  const [loadingChat, setLoadingChat] = useState(false);
+  const loadSeq = useRef(0);
   const [newAchievement, setNewAchievement] = useState(null);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const endRef = useRef(null);
 
   // 1. Sesión de Supabase
@@ -82,6 +87,8 @@ export default function Home() {
       setProfile(null);
       setMessages([]);
       setAchievements([]);
+      setConversations([]);
+      setActiveId(null);
       setLeaderboard([]);
       setChatError('');
       return undefined;
@@ -101,18 +108,20 @@ export default function Home() {
           setProfileOk(false);
         }
       }
+      // Al entrar siempre se abre un chat nuevo; los anteriores quedan en la lista.
+      setMessages([]);
+      setActiveId(null);
       try {
         const { data, error } = await supabase
-          .from('chat_history')
-          .select('role, content')
+          .from('conversations')
+          .select('id, title, updated_at')
           .eq('user_id', userId)
-          .order('created_at', { ascending: false })
-          .limit(HISTORY_LOAD_LIMIT);
+          .order('updated_at', { ascending: false })
+          .limit(100);
         if (error) throw error;
-        if (!cancelled) setMessages((data || []).reverse());
+        if (!cancelled) setConversations(data || []);
       } catch (err) {
-        console.error('No se pudo cargar el historial:', err);
-        if (!cancelled) setMessages([]);
+        console.error('No se pudieron cargar los chats:', err);
       }
       try {
         const { data, error } = await supabase
@@ -166,10 +175,61 @@ export default function Home() {
     if (error) console.error('Fallo al cerrar sesión:', error.message);
   }
 
+  function newChat() {
+    loadSeq.current += 1;
+    setActiveId(null);
+    setMessages([]);
+    setChatError('');
+    setLoadingChat(false);
+    setSidebarOpen(false);
+  }
+
+  async function openChat(id) {
+    if (!supabase || id === activeId) {
+      setSidebarOpen(false);
+      return;
+    }
+    const seq = ++loadSeq.current;
+    setActiveId(id);
+    setMessages([]);
+    setChatError('');
+    setLoadingChat(true);
+    setSidebarOpen(false);
+    try {
+      const { data, error } = await supabase
+        .from('chat_history')
+        .select('role, content')
+        .eq('user_id', userId)
+        .eq('conversation_id', id)
+        .order('created_at', { ascending: false })
+        .limit(HISTORY_LOAD_LIMIT);
+      if (error) throw error;
+      if (seq === loadSeq.current) setMessages((data || []).reverse());
+    } catch (err) {
+      console.error('No se pudo cargar el chat:', err);
+      if (seq === loadSeq.current) setChatError('No se pudo cargar ese chat. Intenta de nuevo.');
+    } finally {
+      if (seq === loadSeq.current) setLoadingChat(false);
+    }
+  }
+
+  async function deleteChat(id) {
+    if (!supabase) return;
+    if (!window.confirm('¿Borrar este chat? No se puede deshacer.')) return;
+    const { error } = await supabase.from('conversations').delete().eq('id', id);
+    if (error) {
+      console.error('No se pudo borrar el chat:', error.message);
+      setChatError('No se pudo borrar el chat. Intenta de nuevo.');
+      return;
+    }
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    if (id === activeId) newChat();
+  }
+
   async function sendMessage(e) {
     e.preventDefault();
     const text = input.trim();
-    if (!text || sending || !supabase) return;
+    if (!text || sending || loadingChat || !supabase) return;
 
     setInput('');
     setChatError('');
@@ -184,12 +244,21 @@ export default function Home() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, conversationId: activeId }),
       });
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload.error || 'No se pudo obtener respuesta del tutor.');
 
       setMessages((prev) => [...prev, { role: 'assistant', content: payload.reply }]);
+      if (payload.conversation) {
+        const c = payload.conversation;
+        setActiveId(c.id);
+        setConversations((prev) => {
+          const old = prev.find((x) => x.id === c.id);
+          const merged = { id: c.id, title: c.title || old?.title || 'Chat', updated_at: c.updated_at };
+          return [merged, ...prev.filter((x) => x.id !== c.id)];
+        });
+      }
       if (payload.achievement) {
         const a = payload.achievement;
         setAchievements((prev) => [{ level: a.level, name: a.name, topic: a.topic, created_at: new Date().toISOString() }, ...prev]);
@@ -251,7 +320,14 @@ export default function Home() {
         leaderboard={leaderboard}
         achievements={achievements}
         onSignOut={handleSignOut}
+        conversations={conversations}
+        activeId={activeId}
+        onNewChat={newChat}
+        onOpenChat={openChat}
+        onDeleteChat={deleteChat}
+        open={sidebarOpen}
       />
+      {sidebarOpen && <div className="scrim" onClick={() => setSidebarOpen(false)} />}
       <main className="main">
         {newAchievement && (
           <div className="toast-achievement" role="status">
@@ -264,6 +340,9 @@ export default function Home() {
             </div>
           </div>
         )}
+        <button type="button" className="menu-btn" onClick={() => setSidebarOpen(true)} aria-label="Abrir menú de chats">
+          ☰ Chats
+        </button>
         <Header />
         <p className="caption">¡Aprende paso a paso! Te guiaré para encontrar la respuesta por ti mismo.</p>
         <details className="help" open={messages.length === 0}>
@@ -279,7 +358,8 @@ export default function Home() {
         <hr />
 
         <div className="chat">
-          {messages.length === 0 && !sending && (
+          {loadingChat && <div className="thinking">Cargando chat…</div>}
+          {messages.length === 0 && !sending && !loadingChat && (
             <div className="empty">Cuéntame qué problema o duda de matemáticas tienes y lo resolvemos juntos. 🐬</div>
           )}
           {messages.map((m, i) => (
@@ -298,7 +378,7 @@ export default function Home() {
             placeholder="Escribe tu duda o problema matemático aquí..."
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={sending}
+            disabled={sending || loadingChat}
           />
           <button type="submit" className="btn" disabled={sending || !input.trim()}>
             Enviar

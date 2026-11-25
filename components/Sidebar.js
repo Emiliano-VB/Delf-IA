@@ -8,14 +8,67 @@ const BADGES = {
   5: { icon: '🏆', name: 'Maestro' },
 };
 
-export default function Sidebar({ profile, profileOk, leaderboard, achievements = [], onSignOut }) {
+function dayLabel(iso) {
+  const d = new Date(iso);
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days < 1 && new Date().getDate() === d.getDate()) return 'Hoy';
+  if (days < 2) return 'Ayer';
+  if (days < 8) return 'Últimos 7 días';
+  return 'Anteriores';
+}
+
+export default function Sidebar({
+  profile,
+  profileOk,
+  leaderboard,
+  achievements = [],
+  onSignOut,
+  conversations = [],
+  activeId = null,
+  onNewChat,
+  onOpenChat,
+  onDeleteChat,
+  open = false,
+}) {
+  const groups = [];
+  for (const c of conversations) {
+    const label = dayLabel(c.updated_at);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(c);
+    else groups.push({ label, items: [c] });
+  }
   const counts = [1, 2, 3, 4, 5].map((l) => achievements.filter((a) => a.level === l).length);
   const recent = achievements.slice(0, 3);
   const mins = profile.minutes_today ?? 0;
   const pct = Math.min(mins / DAILY_GOAL_MIN, 1) * 100;
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${open ? 'open' : ''}`}>
+      <button type="button" className="btn block new-chat" onClick={onNewChat}>
+        ✏️ Nuevo chat
+      </button>
+      <nav className="chat-list" aria-label="Chats anteriores">
+        {groups.length === 0 ? (
+          <p className="muted">Aún no tienes chats. ¡Escribe tu primer mensaje!</p>
+        ) : (
+          groups.map((g) => (
+            <div key={g.label}>
+              <div className="chat-group">{g.label}</div>
+              {g.items.map((c) => (
+                <div key={c.id} className={`chat-item ${c.id === activeId ? 'active' : ''}`}>
+                  <button type="button" className="chat-open" onClick={() => onOpenChat(c.id)} title={c.title}>
+                    {c.title || 'Chat'}
+                  </button>
+                  <button type="button" className="chat-del" onClick={() => onDeleteChat(c.id)} aria-label="Borrar chat" title="Borrar chat">
+                    🗑️
+                  </button>
+                </div>
+              ))}
+            </div>
+          ))
+        )}
+      </nav>
+      <hr />
       <h2>👤 {profile.first_name || 'Estudiante'}</h2>
       <div style={{ marginTop: 12 }}>
         <button type="button" className="btn" onClick={onSignOut}>

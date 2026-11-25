@@ -58,3 +58,22 @@ drop policy if exists "achievements_select_own" on public.achievements;
 create policy "achievements_select_own" on public.achievements for select to authenticated using (auth.uid() = user_id);
 drop policy if exists "achievements_insert_own" on public.achievements;
 create policy "achievements_insert_own" on public.achievements for insert to authenticated with check (auth.uid() = user_id);
+
+-- ---------- conversations (menú de chats) ----------
+-- Ya aplicado en el proyecto. Cada alumno solo ve, crea, renombra y borra sus propios chats.
+-- Borrar un chat borra también sus mensajes (chat_history.conversation_id ... on delete cascade).
+create table if not exists public.conversations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null default 'Nuevo chat',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.chat_history add column if not exists conversation_id uuid references public.conversations(id) on delete cascade;
+create index if not exists conversations_user_idx on public.conversations (user_id, updated_at desc);
+create index if not exists chat_history_conv_idx on public.chat_history (conversation_id, created_at);
+alter table public.conversations enable row level security;
+create policy "conversations_select_own" on public.conversations for select to authenticated using (auth.uid() = user_id);
+create policy "conversations_insert_own" on public.conversations for insert to authenticated with check (auth.uid() = user_id);
+create policy "conversations_update_own" on public.conversations for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "conversations_delete_own" on public.conversations for delete to authenticated using (auth.uid() = user_id);
